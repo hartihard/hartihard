@@ -6,3 +6,5 @@ downloads/
 *.mp3
 *.webm
 .env
+config.json
+venv/

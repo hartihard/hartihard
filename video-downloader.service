@@ -1,0 +1,13 @@
+[Unit]
+Description=VideoLoad – Video Downloader Web App
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/hartihard
+ExecStart=/usr/bin/python3 %h/hartihard/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
