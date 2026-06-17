@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Downloader</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --card: #1a1a24;
+      --card2: #22222f;
+      --accent: #7c3aed;
+      --accent2: #a855f7;
+      --green: #10b981;
+      --red: #ef4444;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --border: #2d2d3f;
+      --radius: 14px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 80px;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .header h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #a855f7, #7c3aed, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header p { color: var(--muted); margin-top: 8px; font-size: 1rem; }
+
+    /* ── Platform badges ── */
+    .platforms {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 36px;
+    }
+    .badge {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    /* ── Main card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    /* ── Input row ── */
+    .url-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .url-row input {
+      flex: 1;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.95rem;
+      padding: 12px 16px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .url-row input:focus { border-color: var(--accent2); }
+    .url-row input::placeholder { color: var(--muted); }
+
+    .btn-info {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 12px 18px;
+      transition: background .2s;
+      white-space: nowrap;
+    }
+    .btn-info:hover { background: var(--border); }
+
+    /* ── Quality selector ── */
+    .quality-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .quality-btn {
+      background: var(--card2);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.82rem;
+      padding: 7px 14px;
+      transition: all .15s;
+    }
+    .quality-btn.active {
+      border-color: var(--accent2);
+      color: var(--accent2);
+      background: #3b1578;
+    }
+
+    /* ── Preview box ── */
+    #preview {
+      display: none;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 20px;
+      gap: 14px;
+      align-items: center;
+    }
+    #preview img {
+      width: 100px;
+      height: 64px;
+      object-fit: cover;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    #preview .meta { flex: 1; min-width: 0; }
+    #preview .meta strong { display: block; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #preview .meta span { color: var(--muted); font-size: 0.78rem; }
+
+    /* ── Download button ── */
+    .btn-dl {
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 14px;
+      transition: opacity .2s, transform .1s;
+    }
+    .btn-dl:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+    .btn-dl:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Progress ── */
+    #progress-section { display: none; margin-top: 22px; }
+    .progress-bar-wrap {
+      background: var(--card2);
+      border-radius: 20px;
+      height: 10px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .progress-bar-fill {
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      height: 100%;
+      transition: width .4s;
+      border-radius: 20px;
+    }
+    .progress-meta { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); }
+
+    /* ── Result ── */
+    #result { display: none; margin-top: 22px; }
+    .result-box {
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .result-box.success { background: #064e3b; border: 1px solid #065f46; }
+    .result-box.error   { background: #450a0a; border: 1px solid #7f1d1d; }
+    .result-box .icon { font-size: 1.4rem; }
+    .result-box .text { flex: 1; font-size: 0.9rem; }
+    .btn-dl-file {
+      background: var(--green);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 9px 18px;
+      text-decoration: none;
+      display: inline-block;
+      transition: opacity .2s;
+    }
+    .btn-dl-file:hover { opacity: .85; }
+
+    /* ── History ── */
+    #history { display: none; margin-top: 32px; }
+    #history h2 { font-size: 1rem; color: var(--muted); margin-bottom: 12px; }
+    .hist-item {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .hist-item .ht { flex: 1; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hist-item .hp { color: var(--muted); font-size: 0.75rem; }
+
+    @media (max-width: 480px) {
+      .header h1 { font-size: 1.8rem; }
+      .card { padding: 20px; }
+      .url-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <h1>Video Downloader</h1>
+  <p>Videos herunterladen von YouTube, TikTok, Facebook und mehr</p>
+</header>
+
+<div class="platforms">
+  {% for name, _ in platforms %}
+  <span class="badge">{{ name }}</span>
+  {% endfor %}
+  <span class="badge">+ viele mehr</span>
+</div>
+
+<div class="card">
+
+  <!-- URL Input -->
+  <div class="url-row">
+    <input id="url-input" type="url" placeholder="Video-URL hier einfugen..." autocomplete="off" spellcheck="false">
+    <button class="btn-info" onclick="loadInfo()">Vorschau</button>
+  </div>
+
+  <!-- Quality -->
+  <div class="quality-row" id="quality-row">
+    <button class="quality-btn active" data-q="best">Beste Qualitat</button>
+    <button class="quality-btn" data-q="1080">1080p</button>
+    <button class="quality-btn" data-q="720">720p</button>
+    <button class="quality-btn" data-q="480">480p</button>
+    <button class="quality-btn" data-q="audio">Nur Audio (MP3)</button>
+  </div>
+
+  <!-- Preview -->
+  <div id="preview">
+    <img id="prev-thumb" src="" alt="Vorschau">
+    <div class="meta">
+      <strong id="prev-title"></strong>
+      <span id="prev-meta"></span>
+    </div>
+  </div>
+
+  <!-- Download button -->
+  <button class="btn-dl" id="dl-btn" onclick="startDownload()">Video herunterladen</button>
+
+  <!-- Progress -->
+  <div id="progress-section">
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="prog-fill" style="width:0%"></div>
+    </div>
+    <div class="progress-meta">
+      <span id="prog-pct">0%</span>
+      <span id="prog-speed"></span>
+      <span id="prog-eta"></span>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="result"></div>
+
+</div>
+
+<!-- History -->
+<div id="history" style="width:100%;max-width:640px;">
+  <h2>Zuletzt heruntergeladen</h2>
+  <div id="hist-list"></div>
+</div>
+
+<script>
+  let currentJobId = null;
+  let pollTimer = null;
+  let selectedQuality = "best";
+  const history = [];
+
+  // Quality buttons
+  document.querySelectorAll(".quality-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".quality-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      selectedQuality = btn.dataset.q;
+    });
+  });
+
+  // Allow Enter in URL input
+  document.getElementById("url-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") startDownload();
+  });
+
+  async function loadInfo() {
+    const url = document.getElementById("url-input").value.trim();
+    if (!url) return;
+    const prev = document.getElementById("preview");
+    prev.style.display = "none";
+    setStatus("");
+    try {
+      const r = await fetch("/info", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({url})
+      });
+      const data = await r.json();
+      if (data.error) { setStatus("error", "Fehler: " + data.error); return; }
+      document.getElementById("prev-thumb").src = data.thumbnail || "";
+      document.getElementById("prev-title").textContent = data.title;
+      const dur = data.duration ? formatDuration(data.duration) : "";
+      document.getElementById("prev-meta").textContent =
+        [data.platform, data.uploader, dur].filter(Boolean).join("  •  ");
+      prev.style.display = "flex";
+    } catch {
+      setStatus("error", "Verbindungsfehler");
+    }
+  }
+
+  async function startDownload() {
+    const url = document.getElementById("url-input").value.trim();
+    if (!url) { setStatus("error", "Bitte eine URL eingeben"); return; }
+
+    setStatus("");
+    clearPoll();
+    document.getElementById("dl-btn").disabled = true;
+    showProgress(0, "", "");
+
+    try {
+      const r = await fetch("/download", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({url, quality: selectedQuality})
+      });
+      const data = await r.json();
+      if (data.error) { setStatus("error", data.error); resetBtn(); return; }
+      currentJobId = data.job_id;
+      pollTimer = setInterval(pollStatus, 1000);
+    } catch {
+      setStatus("error", "Verbindungsfehler");
+      resetBtn();
+    }
+  }
+
+  async function pollStatus() {
+    if (!currentJobId) return;
+    try {
+      const r = await fetch(`/status/${currentJobId}`);
+      const data = await r.json();
+
+      if (data.status === "running") {
+        showProgress(data.progress || 0, data.speed, data.eta);
+      } else if (data.status === "done") {
+        clearPoll();
+        showProgress(100, "", "");
+        showSuccess(data.title, currentJobId);
+        addHistory(data.title, selectedQuality);
+        resetBtn();
+      } else if (data.status === "error") {
+        clearPoll();
+        setStatus("error", "Fehler: " + (data.error || "Unbekannter Fehler"));
+        hideProgress();
+        resetBtn();
+      }
+    } catch { /* ignore transient errors */ }
+  }
+
+  function showProgress(pct, speed, eta) {
+    document.getElementById("progress-section").style.display = "block";
+    document.getElementById("result").style.display = "none";
+    document.getElementById("prog-fill").style.width = pct + "%";
+    document.getElementById("prog-pct").textContent = Math.round(pct) + "%";
+    document.getElementById("prog-speed").textContent = speed || "";
+    document.getElementById("prog-eta").textContent = eta ? "ETA: " + eta : "";
+  }
+
+  function hideProgress() {
+    document.getElementById("progress-section").style.display = "none";
+  }
+
+  function showSuccess(title, jobId) {
+    const res = document.getElementById("result");
+    res.style.display = "block";
+    res.innerHTML = `
+      <div class="result-box success">
+        <div class="icon">✓</div>
+        <div class="text"><strong>Fertig!</strong><br><small>${escHtml(title || "")}</small></div>
+        <a class="btn-dl-file" href="/file/${jobId}" download>Herunterladen</a>
+      </div>`;
+    hideProgress();
+  }
+
+  function setStatus(type, msg) {
+    const res = document.getElementById("result");
+    if (!type) { res.style.display = "none"; return; }
+    res.style.display = "block";
+    res.innerHTML = `
+      <div class="result-box ${type}">
+        <div class="icon">${type === "error" ? "✕" : "✓"}</div>
+        <div class="text">${escHtml(msg)}</div>
+      </div>`;
+  }
+
+  function resetBtn() {
+    document.getElementById("dl-btn").disabled = false;
+  }
+
+  function clearPoll() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  }
+
+  function addHistory(title, quality) {
+    history.unshift({title, quality, time: new Date()});
+    if (history.length > 5) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const el = document.getElementById("history");
+    const list = document.getElementById("hist-list");
+    if (!history.length) { el.style.display = "none"; return; }
+    el.style.display = "block";
+    list.innerHTML = history.map(h => `
+      <div class="hist-item">
+        <div>
+          <div class="ht">${escHtml(h.title)}</div>
+          <div class="hp">${h.quality} • ${h.time.toLocaleTimeString("de-DE")}</div>
+        </div>
+      </div>`).join("");
+  }
+
+  function formatDuration(sec) {
+    const m = Math.floor(sec / 60), s = sec % 60;
+    const h = Math.floor(m / 60);
+    if (h > 0) return `${h}:${String(m % 60).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+    return `${m}:${String(s).padStart(2,"0")}`;
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+</script>
+</body>
+</html>
