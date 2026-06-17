@@ -1,10 +1,14 @@
 import os
 import re
+import ssl
 import uuid
 import threading
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_from_directory
 import yt_dlp
+
+# Allow self-signed certs in sandboxed/proxy environments
+ssl._create_default_https_context = ssl._create_unverified_context
 
 app = Flask(__name__)
 
@@ -69,6 +73,7 @@ def _run_download(job_id: str, url: str, quality: str) -> None:
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
+        "nocheckcertificate": True,
         "merge_output_format": "mp4",
         "postprocessors": [],
     }
@@ -114,7 +119,7 @@ def get_info():
         return jsonify({"error": "Keine URL angegeben"}), 400
 
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "noplaylist": True}) as ydl:
+        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "noplaylist": True, "nocheckcertificate": True}) as ydl:
             info = ydl.extract_info(url, download=False)
         return jsonify({
             "title": info.get("title", "Unbekannt"),
