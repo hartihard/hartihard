@@ -1,40 +1,40 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Diese Datei bietet Claude Code (claude.ai/code) Orientierungshilfe für die Arbeit mit dem Code in diesem Repository.
 
-## Project overview
+## Projektübersicht
 
-VideoLoad / "KI Hub" is a video downloader wrapping `yt-dlp`, shipped as three independent front-ends over the same download logic, each duplicated rather than shared:
+VideoLoad / "KI Hub" ist ein Video-Downloader auf Basis von `yt-dlp`, der als drei unabhängige Frontends mit derselben Download-Logik ausgeliefert wird — dupliziert statt geteilt:
 
-- `app.py` — Flask web app (browser UI, background jobs tracked in-memory, served on port 5000)
-- `cli.py` — standalone terminal command (`videoload`), designed to drop videos straight into ComfyUI/Fooocus input folders for AI workflows
-- `gui.py` — standalone Tkinter desktop app with the same target-folder concept
+- `app.py` — Flask-Web-App (Browser-UI, Hintergrund-Jobs im Speicher verwaltet, läuft auf Port 5000)
+- `cli.py` — eigenständiger Terminal-Befehl (`videoload`), gedacht um Videos direkt in ComfyUI/Fooocus-Input-Ordner für KI-Workflows zu laden
+- `gui.py` — eigenständige Tkinter-Desktop-App mit demselben Zielordner-Konzept
 
-`templates/index.html` is a single self-contained HTML file (inline `<style>` and `<script>`, no build step, no separate JS/CSS assets) that talks to `app.py`'s JSON endpoints.
+`templates/index.html` ist eine einzelne, in sich geschlossene HTML-Datei (inline `<style>` und `<script>`, kein Build-Schritt, keine separaten JS/CSS-Assets), die mit den JSON-Endpunkten von `app.py` kommuniziert.
 
-`install.sh` installs the CLI as `~/.local/bin/videoload` and registers a `.desktop` entry for the GUI. `video-downloader.service` is a systemd unit for running `app.py` as a background service (`WorkingDirectory=%h/hartihard`).
+`install.sh` installiert die CLI als `~/.local/bin/videoload` und registriert einen `.desktop`-Eintrag für die GUI. `video-downloader.service` ist eine systemd-Unit, um `app.py` als Hintergrunddienst laufen zu lassen (`WorkingDirectory=%h/hartihard`).
 
-There are no tests, linter config, or CI in this repo.
+Es gibt keine Tests, keine Linter-Konfiguration und keine CI in diesem Repo.
 
-## Running
+## Ausführen
 
 ```bash
-pip install -r requirements.txt   # flask, yt-dlp (ffmpeg required separately for audio extraction/merging)
+pip install -r requirements.txt   # flask, yt-dlp (ffmpeg wird separat für Audio-Extraktion/Merging benötigt)
 
-python3 app.py                    # web app at http://localhost:5000
-python3 gui.py                    # desktop app (Tkinter)
-python3 cli.py <URL> [--ziel comfyui|fooocus|videos|<path>] [--qualitaet best|1080|720|480|audio] [--info]
+python3 app.py                    # Web-App unter http://localhost:5000
+python3 gui.py                    # Desktop-App (Tkinter)
+python3 cli.py <URL> [--ziel comfyui|fooocus|videos|<pfad>] [--qualitaet best|1080|720|480|audio] [--info]
 
-./install.sh                      # installs `videoload` CLI command + desktop entry system-wide
+./install.sh                      # installiert den `videoload`-Befehl + Desktop-Eintrag systemweit
 ```
 
-There is no build step, package manifest beyond `requirements.txt`, test suite, or linter — verify changes by running the relevant entry point directly.
+Es gibt keinen Build-Schritt, kein Package-Manifest außer `requirements.txt`, keine Test-Suite und keinen Linter — Änderungen werden verifiziert, indem der jeweilige Einstiegspunkt direkt ausgeführt wird.
 
-## Architecture notes
+## Architektur-Hinweise
 
-- **Three parallel implementations, not shared code.** The download-options logic (quality → yt-dlp `format` string map, `nocheckcertificate`, SSL bypass via `ssl._create_default_https_context = ssl._create_unverified_context`, audio-extraction postprocessor config) is copy-pasted across `app.py`, `cli.py`, and `gui.py`. When changing download behavior (new quality option, new yt-dlp opt, new platform pattern), update all three unless the change is genuinely UI-specific.
-- **`app.py` job model**: downloads run in daemon `threading.Thread`s, tracked in a module-level `jobs: dict[str, dict]` guarded by `jobs_lock`. State is in-memory only — restarting the process loses all in-flight/completed job records. The frontend polls `GET /status/<job_id>` after kicking off `POST /download`, then fetches the file via `GET /file/<job_id>` and calls `DELETE /cleanup/<job_id>` to remove it from disk/memory.
-- **Config**: `app.py` persists only `download_dir` to `config.json` (gitignored) next to the script; read/written via `load_config`/`save_config`. `cli.py` and `gui.py` don't use this config file — they resolve target directories independently (`ZIELE` / `DEFAULT_ZIELE` dicts, checking for existing ComfyUI/Fooocus folders in common locations before falling back to creating one).
-- **Platform detection**: `SUPPORTED_PLATFORMS` in `app.py` is a list of `(name, regex, emoji)` tuples matched against the URL via `detect_platform`; this list is presentational only (drives the UI's platform badge) and is independent of `cli.py`'s `ZIELE`/quality maps.
-- **User-facing strings are German** (UI text, CLI help, error messages like "Keine URL angegeben"). Match this convention in user-visible strings; code identifiers are a mix of German (`ziel`, `qualitaet`) and English.
-- **`templates/index.html`** has no separate static assets — CSS and JS live inline in the same file. When adding frontend behavior, edit this file directly rather than introducing a build pipeline.
+- **Drei parallele Implementierungen, kein gemeinsamer Code.** Die Download-Options-Logik (Qualität → yt-dlp-`format`-String-Map, `nocheckcertificate`, SSL-Bypass via `ssl._create_default_https_context = ssl._create_unverified_context`, Audio-Extraktions-Postprocessor-Konfiguration) ist über `app.py`, `cli.py` und `gui.py` hinweg kopiert. Bei Änderungen am Download-Verhalten (neue Qualitätsstufe, neue yt-dlp-Option, neues Plattform-Muster) alle drei aktualisieren, außer die Änderung ist rein UI-spezifisch.
+- **Job-Modell in `app.py`**: Downloads laufen in daemon-`threading.Thread`s, verwaltet in einem modul-globalen `jobs: dict[str, dict]`, abgesichert durch `jobs_lock`. Der Zustand liegt nur im Speicher — ein Neustart des Prozesses verwirft alle laufenden/abgeschlossenen Job-Datensätze. Das Frontend pollt `GET /status/<job_id>`, nachdem es `POST /download` angestoßen hat, holt die Datei dann über `GET /file/<job_id>` und ruft `DELETE /cleanup/<job_id>` auf, um sie von Platte und aus dem Speicher zu entfernen.
+- **Konfiguration**: `app.py` persistiert ausschließlich `download_dir` in `config.json` (gitignored) neben dem Skript; gelesen/geschrieben über `load_config`/`save_config`. `cli.py` und `gui.py` nutzen diese Config-Datei nicht — sie lösen Zielordner unabhängig auf (`ZIELE`- / `DEFAULT_ZIELE`-Dicts, die zunächst prüfen, ob bereits ComfyUI-/Fooocus-Ordner an gängigen Orten existieren, bevor ein neuer angelegt wird).
+- **Plattform-Erkennung**: `SUPPORTED_PLATFORMS` in `app.py` ist eine Liste von `(Name, Regex, Emoji)`-Tupeln, die per `detect_platform` gegen die URL geprüft werden; diese Liste ist rein präsentationsbezogen (steuert das Plattform-Badge in der UI) und unabhängig von den `ZIELE`-/Qualitäts-Maps in `cli.py`.
+- **Nutzersichtbare Texte sind auf Deutsch** (UI-Text, CLI-Hilfe, Fehlermeldungen wie "Keine URL angegeben"). Diese Konvention bei nutzersichtbaren Strings beibehalten; Code-Bezeichner sind eine Mischung aus Deutsch (`ziel`, `qualitaet`) und Englisch.
+- **`templates/index.html`** hat keine separaten statischen Assets — CSS und JS liegen inline in derselben Datei. Bei neuem Frontend-Verhalten diese Datei direkt bearbeiten statt eine Build-Pipeline einzuführen.
